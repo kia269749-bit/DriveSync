@@ -1,0 +1,137 @@
+//@version=5
+indicator("🎯 Smart Buy/Sell Signal (EMA+RSI+MACD)", overlay=true, max_labels_count=500)
+
+// ═══════════════════════════════════════
+//         تنظیمات (Settings)
+// ═══════════════════════════════════════
+
+// EMA Settings
+ema_fast_len  = input.int(9,  title="EMA سریع", group="تنظیمات EMA")
+ema_slow_len  = input.int(21, title="EMA کند",  group="تنظیمات EMA")
+ema_trend_len = input.int(50, title="EMA ترند", group="تنظیمات EMA")
+
+// RSI Settings
+rsi_len       = input.int(14,  title="دوره RSI",        group="تنظیمات RSI")
+rsi_ob        = input.int(70,  title="سطح اشباع خرید",  group="تنظیمات RSI")
+rsi_os        = input.int(30,  title="سطح اشباع فروش",  group="تنظیمات RSI")
+
+// MACD Settings
+macd_fast     = input.int(12, title="MACD سریع",  group="تنظیمات MACD")
+macd_slow     = input.int(26, title="MACD کند",   group="تنظیمات MACD")
+macd_signal   = input.int(9,  title="MACD سیگنال", group="تنظیمات MACD")
+
+// Display Settings
+show_ema      = input.bool(true, title="نمایش خطوط EMA", group="نمایش")
+show_labels   = input.bool(true, title="نمایش برچسب BUY/SELL", group="نمایش")
+show_bg       = input.bool(true, title="نمایش پس‌زمینه ترند", group="نمایش")
+
+// ═══════════════════════════════════════
+//         محاسبات
+// ═══════════════════════════════════════
+
+// EMA Calculations
+ema_fast  = ta.ema(close, ema_fast_len)
+ema_slow  = ta.ema(close, ema_slow_len)
+ema_trend = ta.ema(close, ema_trend_len)
+
+// RSI Calculation
+rsi = ta.rsi(close, rsi_len)
+
+// MACD Calculation
+[macd_line, signal_line, hist] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+
+// ═══════════════════════════════════════
+//         شرایط سیگنال
+// ═══════════════════════════════════════
+
+// BUY Conditions
+buy_ema    = ta.crossover(ema_fast, ema_slow)          // کراس صعودی EMA
+buy_rsi    = rsi > 50 and rsi < rsi_ob                 // RSI در ناحیه قدرت
+buy_macd   = ta.crossover(macd_line, signal_line)      // کراس صعودی MACD
+buy_trend  = close > ema_trend                         // قیمت بالای ترند
+
+// SELL Conditions
+sell_ema   = ta.crossunder(ema_fast, ema_slow)         // کراس نزولی EMA
+sell_rsi   = rsi < 50 and rsi > rsi_os                 // RSI در ناحیه ضعف
+sell_macd  = ta.crossunder(macd_line, signal_line)     // کراس نزولی MACD
+sell_trend = close < ema_trend                         // قیمت زیر ترند
+
+// سیگنال نهایی (حداقل 2 از 3 شرط)
+buy_score  = (buy_ema  ? 1 : 0) + (buy_rsi  ? 1 : 0) + (buy_macd  ? 1 : 0) + (buy_trend  ? 1 : 0)
+sell_score = (sell_ema ? 1 : 0) + (sell_rsi ? 1 : 0) + (sell_macd ? 1 : 0) + (sell_trend ? 1 : 0)
+
+strong_buy  = buy_score  >= 3
+strong_sell = sell_score >= 3
+weak_buy    = buy_score  == 2
+weak_sell   = sell_score == 2
+
+// ═══════════════════════════════════════
+//         نمایش EMA
+// ═══════════════════════════════════════
+
+plot(show_ema ? ema_fast  : na, title="EMA سریع",  color=color.new(color.blue,   0), linewidth=1)
+plot(show_ema ? ema_slow  : na, title="EMA کند",   color=color.new(color.orange, 0), linewidth=1)
+plot(show_ema ? ema_trend : na, title="EMA ترند",  color=color.new(color.white,  0), linewidth=2)
+
+// ═══════════════════════════════════════
+//         پس‌زمینه ترند
+// ═══════════════════════════════════════
+
+bgcolor(show_bg and close > ema_trend ? color.new(color.green, 93) : na, title="پس‌زمینه صعودی")
+bgcolor(show_bg and close < ema_trend ? color.new(color.red,   93) : na, title="پس‌زمینه نزولی")
+
+// ═══════════════════════════════════════
+//         سیگنال‌های خرید و فروش
+// ═══════════════════════════════════════
+
+// Strong BUY
+plotshape(strong_buy,  title="خرید قوی",  style=shape.labelup,   location=location.belowbar, color=color.new(color.green, 0),  textcolor=color.white, text="BUY\n★★★",  size=size.normal)
+
+// Weak BUY
+plotshape(weak_buy,    title="خرید ضعیف", style=shape.labelup,   location=location.belowbar, color=color.new(color.green, 40), textcolor=color.white, text="BUY\n★★",    size=size.small)
+
+// Strong SELL
+plotshape(strong_sell, title="فروش قوی",  style=shape.labeldown, location=location.abovebar, color=color.new(color.red,   0),  textcolor=color.white, text="SELL\n★★★", size=size.normal)
+
+// Weak SELL
+plotshape(weak_sell,   title="فروش ضعیف", style=shape.labeldown, location=location.abovebar, color=color.new(color.red,   40), textcolor=color.white, text="SELL\n★★",   size=size.small)
+
+// ═══════════════════════════════════════
+//         آلارم‌ها (Alerts)
+// ═══════════════════════════════════════
+
+alertcondition(strong_buy,  title="🟢 سیگنال خرید قوی",  message="🟢 BUY سیگنال قوی - {{ticker}} | قیمت: {{close}}")
+alertcondition(strong_sell, title="🔴 سیگنال فروش قوی", message="🔴 SELL سیگنال قوی - {{ticker}} | قیمت: {{close}}")
+alertcondition(weak_buy,    title="🟡 سیگنال خرید ضعیف", message="🟡 BUY سیگنال ضعیف - {{ticker}} | قیمت: {{close}}")
+alertcondition(weak_sell,   title="🟠 سیگنال فروش ضعیف", message="🟠 SELL سیگنال ضعیف - {{ticker}} | قیمت: {{close}}")
+
+// ═══════════════════════════════════════
+//         جدول اطلاعات
+// ═══════════════════════════════════════
+
+var table info_table = table.new(position.top_right, 2, 5, border_width=1)
+
+if barstate.islast
+    table.cell(info_table, 0, 0, "اندیکاتور",  text_color=color.white, bgcolor=color.new(color.blue, 20), text_size=size.small)
+    table.cell(info_table, 1, 0, "مقدار",      text_color=color.white, bgcolor=color.new(color.blue, 20), text_size=size.small)
+
+    table.cell(info_table, 0, 1, "RSI",        text_color=color.white, bgcolor=color.new(color.gray, 60), text_size=size.small)
+    table.cell(info_table, 1, 1, str.tostring(math.round(rsi, 2)), 
+               text_color = rsi > rsi_ob ? color.red : rsi < rsi_os ? color.green : color.white,
+               bgcolor=color.new(color.gray, 60), text_size=size.small)
+
+    table.cell(info_table, 0, 2, "MACD",       text_color=color.white, bgcolor=color.new(color.gray, 60), text_size=size.small)
+    table.cell(info_table, 1, 2, str.tostring(math.round(macd_line, 4)),
+               text_color = macd_line > signal_line ? color.green : color.red,
+               bgcolor=color.new(color.gray, 60), text_size=size.small)
+
+    table.cell(info_table, 0, 3, "ترند",       text_color=color.white, bgcolor=color.new(color.gray, 60), text_size=size.small)
+    table.cell(info_table, 1, 3, close > ema_trend ? "📈 صعودی" : "📉 نزولی",
+               text_color = close > ema_trend ? color.green : color.red,
+               bgcolor=color.new(color.gray, 60), text_size=size.small)
+
+    table.cell(info_table, 0, 4, "سیگنال",     text_color=color.white, bgcolor=color.new(color.gray, 60), text_size=size.small)
+    table.cell(info_table, 1, 4, 
+               strong_buy ? "🟢 خرید قوی" : strong_sell ? "🔴 فروش قوی" : 
+               weak_buy   ? "🟡 خرید"     : weak_sell   ? "🟠 فروش"     : "⏳ انتظار",
+               text_color=color.white, bgcolor=color.new(color.gray, 60), text_size=size.small)
